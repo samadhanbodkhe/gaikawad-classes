@@ -10,7 +10,6 @@ app.use(cors({
   origin: [
     "https://localhost:3000",
     "https://localhost:5173",
-    "https://gaikawad-classes.vercel.app",
     "https://gaikawad-classes-admin-panal.vercel.app",
     "https://gaikawad-classes-teacher-panal.vercel.app"
   ],
