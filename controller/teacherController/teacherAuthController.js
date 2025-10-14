@@ -3,8 +3,8 @@ const jwt = require("jsonwebtoken");
 const Teacher = require("../../models/teacher/Teacher");
 const sendEmail = require("../../utils/sendEmail");
 const AdminTeacherRequest = require("../../models/admin/AdminTeacherRequest");
-const sendOTP = require("../../utils/sendOTP");
 const uploadToCloudinary = require("../../utils/cloudinaryUpload");
+const otpSend = require("../../utils/otpSend");
 
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -84,7 +84,7 @@ exports.loginTeacher = asyncHandler(async (req, res) => {
     await teacher.save();
 
     try {
-        await sendOTP({ to: teacher.email, otp, name: teacher.name, userType: "teacher" });
+        await otpSend({ to: teacher.email, otp, name: teacher.name, userType: "teacher" });
         res.status(200).json({ message: "OTP sent successfully", teacherId: teacher._id });
     } catch (err) {
         console.error("OTP send error:", err.message);

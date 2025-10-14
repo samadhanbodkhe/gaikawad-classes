@@ -1,7 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const jwt = require("jsonwebtoken");
 const Admin = require("../../models/admin/Admin");
-const sendOTP = require("../../utils/sendOTP");
+const otpSend = require("../../utils/otpSend");
 
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
@@ -35,7 +35,7 @@ exports.loginAdmin = asyncHandler(async (req, res) => {
   await admin.save();
 
   try {
-    await sendOTP({ to: admin.email, otp, name: admin.name, userType: "admin" });
+    await otpSend({ to: admin.email, otp, name: admin.name, userType: "admin" });
     res.status(200).json({ message: "OTP sent successfully", adminId: admin._id });
   } catch (err) {
     console.error("OTP send error:", err.message);

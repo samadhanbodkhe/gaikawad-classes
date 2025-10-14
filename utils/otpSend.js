@@ -1,6 +1,6 @@
 const sendEmail = require("./sendEmail");
 
-const sendOTP = async ({ to, otp, name = "User", userType = "admin" }) => {
+const otpSend = async ({ to, otp, name = "User", userType = "admin" }) => {
   if (!to || !otp) throw new Error("Missing email or OTP");
 
   let subject = "";
@@ -48,4 +48,4 @@ const sendOTP = async ({ to, otp, name = "User", userType = "admin" }) => {
   await sendEmail({ to, subject, html });
 };
 
-module.exports = sendOTP;
+module.exports = otpSend;
