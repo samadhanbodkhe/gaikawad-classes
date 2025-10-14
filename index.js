@@ -11,6 +11,8 @@ app.use(cors({
     "http://localhost:3000",
     "http://localhost:5173",
     "http://gaikawad-classes.vercel.app",
+    "gaikawad-classes-admin-panal.vercel.app",
+    "gaikawad-classes-teacher-panal.vercel.app"
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
