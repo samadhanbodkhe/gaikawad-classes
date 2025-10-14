@@ -16,6 +16,9 @@ router
   .get("/get-profile-teacher", protectTeacher, teacherController.getTeacher)
   .put("/update-profile-teacher", uploadFields, protectTeacher, teacherController.updateTeacher)
   .delete("/delete-teacher", protectTeacher, teacherController.deleteTeacher)
-  .post("/logout", protectTeacher, teacherController.logoutTeacher);
+  .post("/logout", protectTeacher, teacherController.logoutTeacher)
+  .get("/verifyToken", protectTeacher, (req, res) => {
+    res.status(200).json({ success: true, teacher: req.teacher });
+  });
 
 module.exports = router;
