@@ -1,7 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const jwt = require("jsonwebtoken");
 const Admin = require("../../models/admin/Admin");
-const sendOTP = require("../../utils/sendOtp");
+const sendOTP = require("../../utils/sendOTP");
 
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
