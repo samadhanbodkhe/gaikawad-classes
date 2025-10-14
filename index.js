@@ -1,16 +1,16 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const serverless = require("serverless-http");
 require("dotenv").config();
-
 const app = express();
+const cors = require("cors");
+
 
 app.use(cors({
   origin: [
     "http://localhost:3000",
     "http://localhost:5173",
-    "gaikawad-classes.vercel.app"
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
@@ -51,6 +51,6 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ message: err.message || "Internal Server Error" });
 });
 
-const PORT = process.env.PORT || 5000;
+// const PORT = process.env.PORT || 5000;
 // app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-module.exports = app
+module.exports = serverless(app)
