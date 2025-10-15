@@ -166,24 +166,24 @@ exports.updateSchedule = asyncHandler(async (req, res) => {
         schedule: populatedSchedule
     });
 });
-
 exports.deleteSchedule = asyncHandler(async (req, res) => {
     const schedule = await Schedule.findById(req.params.id);
-    if (!schedule || schedule.isDeleted) {
+
+    if (!schedule) {
         return res.status(404).json({
             success: false,
             message: "Schedule not found"
         });
     }
 
-    schedule.isDeleted = true;
-    await schedule.save();
+    await Schedule.findByIdAndDelete(req.params.id);
 
     res.json({
         success: true,
-        message: "Schedule deleted successfully"
+        message: "Schedule permanently deleted"
     });
 });
+
 
 exports.getAllTeachers = asyncHandler(async (req, res) => {
     const teachers = await Teacher.find({ 
