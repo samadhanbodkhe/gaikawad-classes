@@ -6,9 +6,9 @@ const scheduleSchema = new mongoose.Schema({
     subject: { type: String, required: true, trim: true },
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },
-    mode: { type: String, enum: ["online","offline"], default: "offline" },
+    mode: { type: String, enum: ["online", "offline"], default: "offline" },
     room: { type: String, default: null, trim: true },
-    isDeleted: { type: Boolean, default: false } // Soft delete
+    isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 
 // Index for faster queries

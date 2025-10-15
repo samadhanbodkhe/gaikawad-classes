@@ -16,10 +16,13 @@ const formatToIST = (date) => {
   });
 };
 
-// Helper to combine date and time
+// Helper to combine date and time with IST timezone
 const combineDateAndTime = (dateString, timeString) => {
   if (!dateString || !timeString) return null;
-  return new Date(`${dateString}T${timeString}`).toISOString();
+  
+  // Create date in IST timezone
+  const dateTimeString = `${dateString}T${timeString}:00.000+05:30`;
+  return new Date(dateTimeString);
 };
 
 exports.getSchedules = asyncHandler(async (req, res) => {
@@ -80,12 +83,12 @@ exports.createSchedule = asyncHandler(async (req, res) => {
         });
     }
 
-    // Combine date and time
+    // Combine date and time with IST timezone
     const startDateTime = combineDateAndTime(scheduleDate, startTime);
     const endDateTime = combineDateAndTime(scheduleDate, endTime);
 
     // Validate time order
-    if (new Date(startDateTime) >= new Date(endDateTime)) {
+    if (startDateTime >= endDateTime) {
         return res.status(400).json({
             success: false,
             message: "End time must be after start time"
@@ -98,8 +101,8 @@ exports.createSchedule = asyncHandler(async (req, res) => {
         isDeleted: false,
         $or: [
             {
-                startTime: { $lt: new Date(endDateTime) },
-                endTime: { $gt: new Date(startDateTime) }
+                startTime: { $lt: endDateTime },
+                endTime: { $gt: startDateTime }
             }
         ]
     });
@@ -115,8 +118,8 @@ exports.createSchedule = asyncHandler(async (req, res) => {
         teacherId,
         batchName,
         subject,
-        startTime: new Date(startDateTime),
-        endTime: new Date(endDateTime),
+        startTime: startDateTime,
+        endTime: endDateTime,
         mode: mode || "offline",
         room: room || null
     });
@@ -172,15 +175,15 @@ exports.updateSchedule = asyncHandler(async (req, res) => {
         const startDateTime = combineDateAndTime(scheduleDate, startTime);
         const endDateTime = combineDateAndTime(scheduleDate, endTime);
         
-        if (new Date(startDateTime) >= new Date(endDateTime)) {
+        if (startDateTime >= endDateTime) {
             return res.status(400).json({
                 success: false,
                 message: "End time must be after start time"
             });
         }
 
-        schedule.startTime = new Date(startDateTime);
-        schedule.endTime = new Date(endDateTime);
+        schedule.startTime = startDateTime;
+        schedule.endTime = endDateTime;
     }
 
     schedule.batchName = batchName || schedule.batchName;
@@ -289,7 +292,7 @@ exports.getTeacherSchedules = asyncHandler(async (req, res) => {
     }));
 
     res.json({
-        success: false,
+        success: true,
         schedules: formattedSchedules
     });
 });
