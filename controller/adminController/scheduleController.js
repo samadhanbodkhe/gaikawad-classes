@@ -16,6 +16,12 @@ const formatToIST = (date) => {
   });
 };
 
+// Helper to combine date and time
+const combineDateAndTime = (dateString, timeString) => {
+  if (!dateString || !timeString) return null;
+  return new Date(`${dateString}T${timeString}`).toISOString();
+};
+
 exports.getSchedules = asyncHandler(async (req, res) => {
     const { page = 1, limit = 50, teacherId, batchName, subject, mode } = req.query;
     const query = { isDeleted: false };
@@ -50,9 +56,9 @@ exports.getSchedules = asyncHandler(async (req, res) => {
 });
 
 exports.createSchedule = asyncHandler(async (req, res) => {
-    const { teacherId, batchName, subject, startTime, endTime, mode, room } = req.body;
+    const { teacherId, batchName, subject, scheduleDate, startTime, endTime, mode, room } = req.body;
 
-    if (!teacherId || !batchName || !subject || !startTime || !endTime) {
+    if (!teacherId || !batchName || !subject || !scheduleDate || !startTime || !endTime) {
         return res.status(400).json({
             success: false,
             message: "All required fields must be provided"
@@ -74,8 +80,12 @@ exports.createSchedule = asyncHandler(async (req, res) => {
         });
     }
 
+    // Combine date and time
+    const startDateTime = combineDateAndTime(scheduleDate, startTime);
+    const endDateTime = combineDateAndTime(scheduleDate, endTime);
+
     // Validate time order
-    if (new Date(startTime) >= new Date(endTime)) {
+    if (new Date(startDateTime) >= new Date(endDateTime)) {
         return res.status(400).json({
             success: false,
             message: "End time must be after start time"
@@ -88,8 +98,8 @@ exports.createSchedule = asyncHandler(async (req, res) => {
         isDeleted: false,
         $or: [
             {
-                startTime: { $lt: new Date(endTime) },
-                endTime: { $gt: new Date(startTime) }
+                startTime: { $lt: new Date(endDateTime) },
+                endTime: { $gt: new Date(startDateTime) }
             }
         ]
     });
@@ -105,8 +115,8 @@ exports.createSchedule = asyncHandler(async (req, res) => {
         teacherId,
         batchName,
         subject,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
+        startTime: new Date(startDateTime),
+        endTime: new Date(endDateTime),
         mode: mode || "offline",
         room: room || null
     });
@@ -155,23 +165,28 @@ exports.updateSchedule = asyncHandler(async (req, res) => {
         });
     }
 
-    const { batchName, subject, startTime, endTime, mode, room } = req.body;
+    const { batchName, subject, scheduleDate, startTime, endTime, mode, room } = req.body;
 
-    // Validate time order if times are being updated
-    if (startTime && endTime && new Date(startTime) >= new Date(endTime)) {
-        return res.status(400).json({
-            success: false,
-            message: "End time must be after start time"
-        });
+    // If updating time, validate
+    if (scheduleDate && startTime && endTime) {
+        const startDateTime = combineDateAndTime(scheduleDate, startTime);
+        const endDateTime = combineDateAndTime(scheduleDate, endTime);
+        
+        if (new Date(startDateTime) >= new Date(endDateTime)) {
+            return res.status(400).json({
+                success: false,
+                message: "End time must be after start time"
+            });
+        }
+
+        schedule.startTime = new Date(startDateTime);
+        schedule.endTime = new Date(endDateTime);
     }
 
     schedule.batchName = batchName || schedule.batchName;
     schedule.subject = subject || schedule.subject;
     schedule.mode = mode || schedule.mode;
     schedule.room = room !== undefined ? room : schedule.room;
-
-    if (startTime) schedule.startTime = new Date(startTime);
-    if (endTime) schedule.endTime = new Date(endTime);
 
     await schedule.save();
 
@@ -274,7 +289,7 @@ exports.getTeacherSchedules = asyncHandler(async (req, res) => {
     }));
 
     res.json({
-        success: true,
+        success: false,
         schedules: formattedSchedules
     });
 });
