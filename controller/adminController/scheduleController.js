@@ -2,26 +2,53 @@ const asyncHandler = require("express-async-handler");
 const Schedule = require("../../models/admin/Schedule");
 const Teacher = require("../../models/teacher/Teacher");
 
-// Helper to format date in IST
-const formatToIST = (date) => {
+// Helper to format date in Indian format with AM/PM
+const formatToIndianTime = (date) => {
   if (!date) return null;
-  return new Date(date).toLocaleString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+  
+  const d = new Date(date);
+  // Convert to IST (Asia/Kolkata)
+  const options = {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
     hour12: true
-  });
+  };
+  
+  return d.toLocaleString('en-IN', options);
 };
 
-// Helper to combine date and time with IST timezone
+// Helper to convert 12-hour AM/PM to 24-hour for storage
+const convertTo24Hour = (timeStr) => {
+  if (!timeStr) return null;
+  
+  const [time, modifier] = timeStr.split(' ');
+  let [hours, minutes] = time.split(':');
+  
+  if (hours === '12') {
+    hours = '00';
+  }
+  
+  if (modifier === 'PM') {
+    hours = parseInt(hours, 10) + 12;
+  }
+  
+  return `${hours.padStart(2, '0')}:${minutes}`;
+};
+
+// Helper to combine date and time
 const combineDateAndTime = (dateString, timeString) => {
   if (!dateString || !timeString) return null;
   
-  // Create date in IST timezone
-  const dateTimeString = `${dateString}T${timeString}:00.000+05:30`;
+  // Convert to 24-hour format first
+  const time24Hour = convertTo24Hour(timeString);
+  if (!time24Hour) return null;
+  
+  // Create date in local timezone (will be stored as UTC in MongoDB)
+  const dateTimeString = `${dateString}T${time24Hour}:00`;
   return new Date(dateTimeString);
 };
 
@@ -40,11 +67,11 @@ exports.getSchedules = asyncHandler(async (req, res) => {
         .skip((page - 1) * limit)
         .limit(parseInt(limit));
 
-    // Format dates for display
+    // Format dates for display in Indian time
     const formattedSchedules = schedules.map(schedule => ({
         ...schedule._doc,
-        displayStartTime: formatToIST(schedule.startTime),
-        displayEndTime: formatToIST(schedule.endTime)
+        displayStartTime: formatToIndianTime(schedule.startTime),
+        displayEndTime: formatToIndianTime(schedule.endTime)
     }));
 
     const total = await Schedule.countDocuments(query);
@@ -83,9 +110,16 @@ exports.createSchedule = asyncHandler(async (req, res) => {
         });
     }
 
-    // Combine date and time with IST timezone
+    // Combine date and time
     const startDateTime = combineDateAndTime(scheduleDate, startTime);
     const endDateTime = combineDateAndTime(scheduleDate, endTime);
+
+    if (!startDateTime || !endDateTime) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid time format"
+        });
+    }
 
     // Validate time order
     if (startDateTime >= endDateTime) {
@@ -132,8 +166,8 @@ exports.createSchedule = asyncHandler(async (req, res) => {
         message: "Schedule created successfully",
         schedule: {
             ...populatedSchedule._doc,
-            displayStartTime: formatToIST(populatedSchedule.startTime),
-            displayEndTime: formatToIST(populatedSchedule.endTime)
+            displayStartTime: formatToIndianTime(populatedSchedule.startTime),
+            displayEndTime: formatToIndianTime(populatedSchedule.endTime)
         }
     });
 });
@@ -153,8 +187,8 @@ exports.getScheduleById = asyncHandler(async (req, res) => {
         success: true,
         schedule: {
             ...schedule._doc,
-            displayStartTime: formatToIST(schedule.startTime),
-            displayEndTime: formatToIST(schedule.endTime)
+            displayStartTime: formatToIndianTime(schedule.startTime),
+            displayEndTime: formatToIndianTime(schedule.endTime)
         }
     });
 });
@@ -174,6 +208,13 @@ exports.updateSchedule = asyncHandler(async (req, res) => {
     if (scheduleDate && startTime && endTime) {
         const startDateTime = combineDateAndTime(scheduleDate, startTime);
         const endDateTime = combineDateAndTime(scheduleDate, endTime);
+        
+        if (!startDateTime || !endDateTime) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid time format"
+            });
+        }
         
         if (startDateTime >= endDateTime) {
             return res.status(400).json({
@@ -201,8 +242,8 @@ exports.updateSchedule = asyncHandler(async (req, res) => {
         message: "Schedule updated successfully",
         schedule: {
             ...populatedSchedule._doc,
-            displayStartTime: formatToIST(populatedSchedule.startTime),
-            displayEndTime: formatToIST(populatedSchedule.endTime)
+            displayStartTime: formatToIndianTime(populatedSchedule.startTime),
+            displayEndTime: formatToIndianTime(populatedSchedule.endTime)
         }
     });
 });
@@ -258,8 +299,8 @@ exports.getTodaysSchedules = asyncHandler(async (req, res) => {
 
     const formattedSchedules = schedules.map(schedule => ({
         ...schedule._doc,
-        displayStartTime: formatToIST(schedule.startTime),
-        displayEndTime: formatToIST(schedule.endTime)
+        displayStartTime: formatToIndianTime(schedule.startTime),
+        displayEndTime: formatToIndianTime(schedule.endTime)
     }));
 
     res.json({
@@ -287,8 +328,8 @@ exports.getTeacherSchedules = asyncHandler(async (req, res) => {
 
     const formattedSchedules = schedules.map(schedule => ({
         ...schedule._doc,
-        displayStartTime: formatToIST(schedule.startTime),
-        displayEndTime: formatToIST(schedule.endTime)
+        displayStartTime: formatToIndianTime(schedule.startTime),
+        displayEndTime: formatToIndianTime(schedule.endTime)
     }));
 
     res.json({
