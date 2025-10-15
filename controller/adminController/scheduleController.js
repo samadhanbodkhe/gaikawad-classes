@@ -2,6 +2,23 @@ const asyncHandler = require("express-async-handler");
 const Schedule = require("../../models/admin/Schedule");
 const Teacher = require("../../models/teacher/Teacher");
 
+// Helper function to convert to IST
+const convertToIST = (date) => {
+  return new Date(date).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "medium",
+    timeStyle: "medium"
+  });
+};
+
+// Helper to ensure dates are stored correctly in UTC
+const parseDateTime = (dateTimeStr) => {
+  // Create date in IST timezone
+  const date = new Date(dateTimeStr);
+  // Convert to UTC for storage
+  return new Date(date.getTime() - (5*60 + 30)*60*1000); // IST to UTC
+};
+
 exports.getSchedules = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, teacherId, batchName, subject, mode } = req.query;
     const query = { isDeleted: false };
@@ -17,10 +34,17 @@ exports.getSchedules = asyncHandler(async (req, res) => {
         .skip((page - 1) * limit)
         .limit(parseInt(limit));
 
+    // Convert times to IST for response
+    const schedulesWithIST = schedules.map(schedule => ({
+        ...schedule._doc,
+        startTimeIST: convertToIST(schedule.startTime),
+        endTimeIST: convertToIST(schedule.endTime)
+    }));
+
     const total = await Schedule.countDocuments(query);
 
     res.json({
-        schedules,
+        schedules: schedulesWithIST,
         page: parseInt(page),
         limit: parseInt(limit),
         total,
@@ -47,12 +71,16 @@ exports.createSchedule = asyncHandler(async (req, res) => {
         throw new Error("Teacher is not approved by admin yet");
     }
 
+    // Parse dates to ensure correct UTC storage
+    const startTimeUTC = parseDateTime(startTime);
+    const endTimeUTC = parseDateTime(endTime);
+
     const schedule = await Schedule.create({
         teacherId,
         batchName,
         subject,
-        startTime,
-        endTime,
+        startTime: startTimeUTC,
+        endTime: endTimeUTC,
         mode: mode || "offline",
         room: room || null
     });
@@ -61,12 +89,18 @@ exports.createSchedule = asyncHandler(async (req, res) => {
     const populatedSchedule = await Schedule.findById(schedule._id)
         .populate("teacherId", "name mobile email");
 
+    // Add IST times to response
+    const responseSchedule = {
+        ...populatedSchedule._doc,
+        startTimeIST: convertToIST(populatedSchedule.startTime),
+        endTimeIST: convertToIST(populatedSchedule.endTime)
+    };
+
     res.status(201).json({
         message: "Schedule created successfully",
-        schedule: populatedSchedule
+        schedule: responseSchedule
     });
 });
-
 
 exports.getScheduleById = asyncHandler(async (req, res) => {
     const schedule = await Schedule.findById(req.params.id).populate("teacherId", "name email");
@@ -74,7 +108,15 @@ exports.getScheduleById = asyncHandler(async (req, res) => {
         res.status(404);
         throw new Error("Schedule not found");
     }
-    res.json(schedule);
+    
+    // Add IST times to response
+    const scheduleWithIST = {
+        ...schedule._doc,
+        startTimeIST: convertToIST(schedule.startTime),
+        endTimeIST: convertToIST(schedule.endTime)
+    };
+    
+    res.json(scheduleWithIST);
 });
 
 exports.updateSchedule = asyncHandler(async (req, res) => {
@@ -88,10 +130,16 @@ exports.updateSchedule = asyncHandler(async (req, res) => {
 
     schedule.batchName = batchName || schedule.batchName;
     schedule.subject = subject || schedule.subject;
-    schedule.startTime = startTime || schedule.startTime;
-    schedule.endTime = endTime || schedule.endTime;
     schedule.mode = mode || schedule.mode;
     schedule.room = room || schedule.room;
+
+    // Update times with proper UTC conversion
+    if (startTime) {
+        schedule.startTime = parseDateTime(startTime);
+    }
+    if (endTime) {
+        schedule.endTime = parseDateTime(endTime);
+    }
 
     await schedule.save();
 
@@ -99,9 +147,16 @@ exports.updateSchedule = asyncHandler(async (req, res) => {
     const populatedSchedule = await Schedule.findById(schedule._id)
         .populate("teacherId", "name mobile email");
 
+    // Add IST times to response
+    const responseSchedule = {
+        ...populatedSchedule._doc,
+        startTimeIST: convertToIST(populatedSchedule.startTime),
+        endTimeIST: convertToIST(populatedSchedule.endTime)
+    };
+
     res.json({
         message: "Schedule updated successfully",
-        schedule: populatedSchedule
+        schedule: responseSchedule
     });
 });
 
@@ -126,7 +181,6 @@ exports.getAllTeachers = asyncHandler(async (req, res) => {
     res.json(teachers);
 });
 
-
 exports.getTodaysSchedules = asyncHandler(async (req, res) => {
     const today = new Date();
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
@@ -139,7 +193,14 @@ exports.getTodaysSchedules = asyncHandler(async (req, res) => {
         .populate("teacherId", "name email")
         .sort({ startTime: 1 });
 
-    res.json({ schedules });
+    // Convert times to IST for response
+    const schedulesWithIST = schedules.map(schedule => ({
+        ...schedule._doc,
+        startTimeIST: convertToIST(schedule.startTime),
+        endTimeIST: convertToIST(schedule.endTime)
+    }));
+
+    res.json({ schedules: schedulesWithIST });
 });
 
 exports.getTeacherSchedules = asyncHandler(async (req, res) => {
@@ -155,8 +216,15 @@ exports.getTeacherSchedules = asyncHandler(async (req, res) => {
         .sort({ startTime: 1 })
         .lean();
 
+    // Convert times to IST for response
+    const schedulesWithIST = schedules.map(schedule => ({
+        ...schedule,
+        startTimeIST: convertToIST(schedule.startTime),
+        endTimeIST: convertToIST(schedule.endTime)
+    }));
+
     res.json({
         success: true,
-        schedules: schedules || [],
+        schedules: schedulesWithIST || [],
     });
 });
