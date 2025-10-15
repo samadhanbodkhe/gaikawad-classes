@@ -1,3 +1,4 @@
+// controller/adminController/adminAuthController.js
 const asyncHandler = require("express-async-handler");
 const jwt = require("jsonwebtoken");
 const Admin = require("../../models/admin/Admin");
@@ -7,25 +8,18 @@ const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expires
 
 exports.registerAdmin = asyncHandler(async (req, res) => {
   const { name, email, mobile } = req.body;
-
-  if (!name || !email || !mobile)
-    return res.status(400).json({ message: "All fields are required" });
-
+  if (!name || !email || !mobile) return res.status(400).json({ message: "All fields are required" });
   const existing = await Admin.findOne({ $or: [{ email }, { mobile }] });
   if (existing) return res.status(400).json({ message: "Admin already exists" });
-
   const admin = await Admin.create({ name, email, mobile, isVerified: true });
-
   res.status(201).json({ message: "Admin registered", adminId: admin._id });
 });
 
 exports.loginAdmin = asyncHandler(async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ message: "Email is required" });
-
   const admin = await Admin.findOne({ email });
-  if (!admin || !admin.isVerified)
-    return res.status(404).json({ message: "Admin not found or not verified" });
+  if (!admin || !admin.isVerified) return res.status(404).json({ message: "Admin not found or not verified" });
 
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
   const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
@@ -43,14 +37,16 @@ exports.loginAdmin = asyncHandler(async (req, res) => {
   }
 });
 
+// VERIFY OTP => create token, set cookie (secure only in production), return token + admin
 exports.verifyLoginOTP = asyncHandler(async (req, res) => {
-  const { otp } = req.body;
+  const { email, otp } = req.body;
 
-  if (!otp) {
-    return res.status(400).json({ message: "OTP is required" });
+  if (!otp || !email) {
+    return res.status(400).json({ message: "Email and OTP required" });
   }
 
   const admin = await Admin.findOne({
+    email,
     otp,
     otpExpires: { $gt: Date.now() },
   });
@@ -66,13 +62,15 @@ exports.verifyLoginOTP = asyncHandler(async (req, res) => {
 
   const token = generateToken(admin._id);
 
+  // cookie secure only in production (so it works on localhost in dev)
   res.cookie("auth_token", token, {
     httpOnly: true,
-     secure: true, 
-     sameSite: "none",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
+  // return token and minimal admin data
   res.status(200).json({
     message: "Login successful",
     token,
@@ -81,10 +79,10 @@ exports.verifyLoginOTP = asyncHandler(async (req, res) => {
       name: admin.name,
       email: admin.email,
       mobile: admin.mobile,
+      isVerified: admin.isVerified
     },
   });
 });
-
 
 // Logout
 exports.logoutAdmin = asyncHandler(async (req, res) => {
@@ -92,6 +90,7 @@ exports.logoutAdmin = asyncHandler(async (req, res) => {
   res.status(200).json({ message: "Logged out successfully" });
 });
 
+// NOTE: adminProtect middleware sets req.admin
 exports.getAdmin = asyncHandler(async (req, res) => {
   const admin = req.admin;
   res.status(200).json({
@@ -103,19 +102,15 @@ exports.getAdmin = asyncHandler(async (req, res) => {
   });
 });
 
-
-
+// verifyToken: just return the admin set by middleware (clean)
 exports.verifyToken = asyncHandler(async (req, res) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ success: false, message: "No token" });
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const admin = await Admin.findById(decoded.id);
-    if (!admin) return res.status(401).json({ success: false, message: "Admin not found" });
-
-    res.status(200).json({ success: true, admin });
-  } catch (err) {
-    res.status(401).json({ success: false, message: "Invalid or expired token" });
-  }
+  // adminProtect should have already validated token and set req.admin
+  if (!req.admin) return res.status(401).json({ success: false, message: "Not authorized" });
+  res.status(200).json({ success: true, admin: {
+    id: req.admin._id,
+    name: req.admin.name,
+    email: req.admin.email,
+    mobile: req.admin.mobile,
+    isVerified: req.admin.isVerified
+  }});
 });
