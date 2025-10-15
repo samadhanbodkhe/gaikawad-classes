@@ -2,195 +2,279 @@ const asyncHandler = require("express-async-handler");
 const Schedule = require("../../models/admin/Schedule");
 const Teacher = require("../../models/teacher/Teacher");
 
-// Convert IST datetime string to UTC for DB storage
-const parseISTtoUTC = (dateTimeStr) => {
-  if (!dateTimeStr) return null;
-  const date = new Date(dateTimeStr);
-  return new Date(date.getTime() - (5 * 60 + 30) * 60 * 1000); // IST -> UTC
-};
-
-// Convert UTC date from DB to IST ISO string for frontend
-const convertUTCtoIST = (date) => {
+// Helper to format date in IST
+const formatToIST = (date) => {
   if (!date) return null;
-  return new Date(date.getTime() + (5 * 60 + 30) * 60 * 1000).toISOString();
+  return new Date(date).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  });
 };
 
-// GET all schedules
 exports.getSchedules = asyncHandler(async (req, res) => {
-  const { teacherId, batchName, subject, mode } = req.query;
-  const query = { isDeleted: false };
+    const { page = 1, limit = 50, teacherId, batchName, subject, mode } = req.query;
+    const query = { isDeleted: false };
 
-  if (teacherId) query.teacherId = teacherId;
-  if (batchName) query.batchName = { $regex: batchName, $options: "i" };
-  if (subject) query.subject = { $regex: subject, $options: "i" };
-  if (mode) query.mode = mode;
+    if (teacherId) query.teacherId = teacherId;
+    if (batchName) query.batchName = { $regex: batchName, $options: "i" };
+    if (subject) query.subject = { $regex: subject, $options: "i" };
+    if (mode) query.mode = mode;
 
-  const schedules = await Schedule.find(query)
-    .populate("teacherId", "name email")
-    .sort({ startTime: 1 });
+    const schedules = await Schedule.find(query)
+        .populate("teacherId", "name email mobile")
+        .sort({ startTime: 1 })
+        .skip((page - 1) * limit)
+        .limit(parseInt(limit));
 
-  const schedulesWithIST = schedules.map((s) => ({
-    ...s._doc,
-    startTimeIST: convertUTCtoIST(s.startTime),
-    endTimeIST: convertUTCtoIST(s.endTime),
-  }));
+    // Format dates for display
+    const formattedSchedules = schedules.map(schedule => ({
+        ...schedule._doc,
+        displayStartTime: formatToIST(schedule.startTime),
+        displayEndTime: formatToIST(schedule.endTime)
+    }));
 
-  res.json({ schedules: schedulesWithIST });
+    const total = await Schedule.countDocuments(query);
+
+    res.json({
+        success: true,
+        schedules: formattedSchedules,
+        total,
+        page: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+    });
 });
 
-// CREATE schedule
 exports.createSchedule = asyncHandler(async (req, res) => {
-  const { teacherId, batchName, subject, startTime, endTime, mode, room } = req.body;
+    const { teacherId, batchName, subject, startTime, endTime, mode, room } = req.body;
 
-  if (!teacherId || !batchName || !subject || !startTime || !endTime) {
-    res.status(400);
-    throw new Error("All required fields must be provided");
-  }
+    if (!teacherId || !batchName || !subject || !startTime || !endTime) {
+        return res.status(400).json({
+            success: false,
+            message: "All required fields must be provided"
+        });
+    }
 
-  const teacher = await Teacher.findById(teacherId);
-  if (!teacher) {
-    res.status(404);
-    throw new Error("Teacher not found");
-  }
-  if (!teacher.isApproved) {
-    res.status(400);
-    throw new Error("Teacher is not approved");
-  }
+    // Validate teacher
+    const teacher = await Teacher.findById(teacherId).select("name mobile email isApproved");
+    if (!teacher) {
+        return res.status(404).json({
+            success: false,
+            message: "Teacher not found"
+        });
+    }
+    if (!teacher.isApproved) {
+        return res.status(400).json({
+            success: false,
+            message: "Teacher is not approved by admin yet"
+        });
+    }
 
-  const schedule = await Schedule.create({
-    teacherId,
-    batchName,
-    subject,
-    startTime: parseISTtoUTC(startTime),
-    endTime: parseISTtoUTC(endTime),
-    mode: mode || "offline",
-    room: room || null,
-  });
+    // Validate time order
+    if (new Date(startTime) >= new Date(endTime)) {
+        return res.status(400).json({
+            success: false,
+            message: "End time must be after start time"
+        });
+    }
 
-  const populatedSchedule = await Schedule.findById(schedule._id).populate("teacherId", "name email");
+    // Check for schedule conflicts
+    const conflictingSchedule = await Schedule.findOne({
+        teacherId,
+        isDeleted: false,
+        $or: [
+            {
+                startTime: { $lt: new Date(endTime) },
+                endTime: { $gt: new Date(startTime) }
+            }
+        ]
+    });
 
-  res.status(201).json({
-    message: "Schedule created successfully",
-    schedule: {
-      ...populatedSchedule._doc,
-      startTimeIST: convertUTCtoIST(populatedSchedule.startTime),
-      endTimeIST: convertUTCtoIST(populatedSchedule.endTime),
-    },
-  });
+    if (conflictingSchedule) {
+        return res.status(400).json({
+            success: false,
+            message: "Teacher has a conflicting schedule during this time"
+        });
+    }
+
+    const schedule = await Schedule.create({
+        teacherId,
+        batchName,
+        subject,
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+        mode: mode || "offline",
+        room: room || null
+    });
+
+    const populatedSchedule = await Schedule.findById(schedule._id)
+        .populate("teacherId", "name mobile email");
+
+    res.status(201).json({
+        success: true,
+        message: "Schedule created successfully",
+        schedule: {
+            ...populatedSchedule._doc,
+            displayStartTime: formatToIST(populatedSchedule.startTime),
+            displayEndTime: formatToIST(populatedSchedule.endTime)
+        }
+    });
 });
 
-// GET schedule by ID
 exports.getScheduleById = asyncHandler(async (req, res) => {
-  const schedule = await Schedule.findById(req.params.id).populate("teacherId", "name email");
-  if (!schedule || schedule.isDeleted) {
-    res.status(404);
-    throw new Error("Schedule not found");
-  }
-
-  res.json({
-    ...schedule._doc,
-    startTimeIST: convertUTCtoIST(schedule.startTime),
-    endTimeIST: convertUTCtoIST(schedule.endTime),
-  });
+    const schedule = await Schedule.findById(req.params.id)
+        .populate("teacherId", "name email mobile");
+        
+    if (!schedule || schedule.isDeleted) {
+        return res.status(404).json({
+            success: false,
+            message: "Schedule not found"
+        });
+    }
+    
+    res.json({
+        success: true,
+        schedule: {
+            ...schedule._doc,
+            displayStartTime: formatToIST(schedule.startTime),
+            displayEndTime: formatToIST(schedule.endTime)
+        }
+    });
 });
 
-// UPDATE schedule
 exports.updateSchedule = asyncHandler(async (req, res) => {
-  const schedule = await Schedule.findById(req.params.id);
-  if (!schedule || schedule.isDeleted) {
-    res.status(404);
-    throw new Error("Schedule not found");
-  }
+    const schedule = await Schedule.findById(req.params.id);
+    if (!schedule || schedule.isDeleted) {
+        return res.status(404).json({
+            success: false,
+            message: "Schedule not found"
+        });
+    }
 
-  const { batchName, subject, startTime, endTime, mode, room } = req.body;
+    const { batchName, subject, startTime, endTime, mode, room } = req.body;
 
-  schedule.batchName = batchName || schedule.batchName;
-  schedule.subject = subject || schedule.subject;
-  schedule.mode = mode || schedule.mode;
-  schedule.room = room || schedule.room;
+    // Validate time order if times are being updated
+    if (startTime && endTime && new Date(startTime) >= new Date(endTime)) {
+        return res.status(400).json({
+            success: false,
+            message: "End time must be after start time"
+        });
+    }
 
-  if (startTime) schedule.startTime = parseISTtoUTC(startTime);
-  if (endTime) schedule.endTime = parseISTtoUTC(endTime);
+    schedule.batchName = batchName || schedule.batchName;
+    schedule.subject = subject || schedule.subject;
+    schedule.mode = mode || schedule.mode;
+    schedule.room = room !== undefined ? room : schedule.room;
 
-  await schedule.save();
+    if (startTime) schedule.startTime = new Date(startTime);
+    if (endTime) schedule.endTime = new Date(endTime);
 
-  const populatedSchedule = await Schedule.findById(schedule._id).populate("teacherId", "name email");
+    await schedule.save();
 
-  res.json({
-    message: "Schedule updated successfully",
-    schedule: {
-      ...populatedSchedule._doc,
-      startTimeIST: convertUTCtoIST(populatedSchedule.startTime),
-      endTimeIST: convertUTCtoIST(populatedSchedule.endTime),
-    },
-  });
+    const populatedSchedule = await Schedule.findById(schedule._id)
+        .populate("teacherId", "name mobile email");
+
+    res.json({
+        success: true,
+        message: "Schedule updated successfully",
+        schedule: {
+            ...populatedSchedule._doc,
+            displayStartTime: formatToIST(populatedSchedule.startTime),
+            displayEndTime: formatToIST(populatedSchedule.endTime)
+        }
+    });
 });
 
-// DELETE schedule
 exports.deleteSchedule = asyncHandler(async (req, res) => {
-  const schedule = await Schedule.findById(req.params.id);
-  if (!schedule || schedule.isDeleted) {
-    res.status(404);
-    throw new Error("Schedule not found");
-  }
+    const schedule = await Schedule.findById(req.params.id);
+    if (!schedule || schedule.isDeleted) {
+        return res.status(404).json({
+            success: false,
+            message: "Schedule not found"
+        });
+    }
 
-  schedule.isDeleted = true;
-  await schedule.save();
+    schedule.isDeleted = true;
+    await schedule.save();
 
-  res.json({ message: "Schedule deleted successfully" });
+    res.json({
+        success: true,
+        message: "Schedule deleted successfully"
+    });
 });
 
-// GET all approved teachers
 exports.getAllTeachers = asyncHandler(async (req, res) => {
-  const teachers = await Teacher.find({ isApproved: true, isActive: true }).select("name email");
-  res.json(teachers);
-});
+    const teachers = await Teacher.find({ 
+        isApproved: true, 
+        isActive: true 
+    })
+    .select("name email mobile")
+    .sort({ name: 1 });
 
+    res.json({
+        success: true,
+        teachers
+    });
+});
 
 exports.getTodaysSchedules = asyncHandler(async (req, res) => {
     const today = new Date();
-    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
     const schedules = await Schedule.find({
         isDeleted: false,
-        startTime: { $gte: startOfDay, $lte: endOfDay }
+        startTime: { 
+            $gte: today, 
+            $lt: tomorrow 
+        }
     })
-        .populate("teacherId", "name email")
-        .sort({ startTime: 1 });
+    .populate("teacherId", "name email")
+    .sort({ startTime: 1 });
 
-    // Convert times to IST for response
-    const schedulesWithIST = schedules.map(schedule => ({
+    const formattedSchedules = schedules.map(schedule => ({
         ...schedule._doc,
-        startTimeIST: convertToIST(schedule.startTime),
-        endTimeIST: convertToIST(schedule.endTime)
+        displayStartTime: formatToIST(schedule.startTime),
+        displayEndTime: formatToIST(schedule.endTime)
     }));
 
-    res.json({ schedules: schedulesWithIST });
+    res.json({
+        success: true,
+        schedules: formattedSchedules
+    });
 });
 
 exports.getTeacherSchedules = asyncHandler(async (req, res) => {
     const teacherId = req.teacher?._id;
 
     if (!teacherId) {
-        res.status(400);
-        throw new Error("Teacher ID not found.");
+        return res.status(400).json({
+            success: false,
+            message: "Teacher ID not found"
+        });
     }
 
-    const schedules = await Schedule.find({ teacherId, isDeleted: false })
-        .populate("teacherId", "name email mobile qualification")
-        .sort({ startTime: 1 })
-        .lean();
+    const schedules = await Schedule.find({ 
+        teacherId, 
+        isDeleted: false 
+    })
+    .populate("teacherId", "name email mobile qualification")
+    .sort({ startTime: 1 });
 
-    // Convert times to IST for response
-    const schedulesWithIST = schedules.map(schedule => ({
-        ...schedule,
-        startTimeIST: convertToIST(schedule.startTime),
-        endTimeIST: convertToIST(schedule.endTime)
+    const formattedSchedules = schedules.map(schedule => ({
+        ...schedule._doc,
+        displayStartTime: formatToIST(schedule.startTime),
+        displayEndTime: formatToIST(schedule.endTime)
     }));
 
     res.json({
         success: true,
-        schedules: schedulesWithIST || [],
+        schedules: formattedSchedules
     });
 });
