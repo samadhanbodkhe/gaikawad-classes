@@ -7,6 +7,7 @@ router
     .post("/Admin-login", adminAuthController.loginAdmin)
     .post("/Admin-verifyOtp", adminAuthController.verifyLoginOTP)
     .get("/getAdminProfile", adminProtect, adminAuthController.getAdmin)
+    .get("/verifyToken", adminProtect, adminAuthController.verifyToken)
     .post("/logout-admin", adminAuthController.logoutAdmin)
 
 module.exports = router;

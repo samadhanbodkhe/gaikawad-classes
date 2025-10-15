@@ -102,3 +102,20 @@ exports.getAdmin = asyncHandler(async (req, res) => {
     isVerified: admin.isVerified,
   });
 });
+
+
+
+exports.verifyToken = asyncHandler(async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ success: false, message: "No token" });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const admin = await Admin.findById(decoded.id);
+    if (!admin) return res.status(401).json({ success: false, message: "Admin not found" });
+
+    res.status(200).json({ success: true, admin });
+  } catch (err) {
+    res.status(401).json({ success: false, message: "Invalid or expired token" });
+  }
+});
