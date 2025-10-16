@@ -7,10 +7,12 @@ exports.getPendingTeacherRequests = asyncHandler(async (req, res) => {
     const requests = await AdminTeacherRequest.find({ status: "pending" });
     res.status(200).json(requests);
 });
+
 exports.getAllTeachers = asyncHandler(async (req, res) => {
-    const requests = await Teacher.find();
-    res.status(200).json(requests);
+    const teachers = await Teacher.find();
+    res.status(200).json(teachers);
 });
+
 exports.getTeacherDetails = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const teacher = await Teacher.findById(id);
@@ -60,9 +62,9 @@ exports.approveTeacherRequest = asyncHandler(async (req, res) => {
     });
 });
 
-
 exports.rejectTeacherRequest = asyncHandler(async (req, res) => {
     const { requestId } = req.params;
+    const { reason } = req.body;
 
     const request = await AdminTeacherRequest.findById(requestId);
     if (!request) {
@@ -71,12 +73,14 @@ exports.rejectTeacherRequest = asyncHandler(async (req, res) => {
 
     request.status = "rejected";
     await request.save();
+
     await sendEmail({
         to: request.email,
         subject: "Teacher Registration Request Rejected",
         html: `
             <h2>Hello ${request.name},</h2>
             <p>We regret to inform you that your teacher registration request has been <b>rejected</b>.</p>
+            ${reason ? `<p><b>Reason:</b> ${reason}</p>` : ''}
             <p>If you believe this was a mistake, please contact the admin for further clarification.</p>
             <p>Regards,<br/>Admin Team</p>
         `
