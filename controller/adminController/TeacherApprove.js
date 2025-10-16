@@ -53,18 +53,31 @@ exports.getAllTeachers = asyncHandler(async (req, res) => {
 
 exports.getTeacherDetails = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const teacher = await Teacher.findById(id);
-  if (!teacher) {
-    return res.status(404).json({ message: "Teacher not found" });
+
+  // First check if it's a Teacher (approved)
+  let teacher = await Teacher.findById(id);
+  if (teacher) {
+    // Parse subjects before sending
+    const formattedTeacher = {
+      ...teacher.toObject(),
+      subjects: parseSubjects(teacher.subjects)
+    };
+    return res.status(200).json(formattedTeacher);
   }
-  
-  // Parse subjects before sending
-  const formattedTeacher = {
-    ...teacher.toObject(),
-    subjects: parseSubjects(teacher.subjects)
-  };
-  
-  res.status(200).json(formattedTeacher);
+
+  // If not found in Teacher, check if it's a pending request in AdminTeacherRequest
+  const pendingRequest = await AdminTeacherRequest.findById(id);
+  if (pendingRequest) {
+    // Parse subjects before sending
+    const formattedRequest = {
+      ...pendingRequest.toObject(),
+      subjects: parseSubjects(pendingRequest.subjects)
+    };
+    return res.status(200).json(formattedRequest);
+  }
+
+  // If not found in either collection
+  return res.status(404).json({ message: "Teacher not found" });
 });
 
 exports.approveTeacherRequest = asyncHandler(async (req, res) => {
