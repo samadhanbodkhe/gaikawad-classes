@@ -9,6 +9,33 @@ const otpSend = require("../../utils/otpSend");
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
+// Helper function to parse subjects
+const parseSubjects = (subjects) => {
+  if (!subjects) return [];
+  
+  if (Array.isArray(subjects)) {
+    return subjects;
+  }
+  
+  if (typeof subjects === 'string') {
+    // Handle stringified array
+    if (subjects.startsWith('[') || subjects.startsWith('"[')) {
+      try {
+        const cleanedString = subjects.replace(/^"|"$/g, '').replace(/\\"/g, '"');
+        const parsed = JSON.parse(cleanedString);
+        return Array.isArray(parsed) ? parsed : [subjects];
+      } catch (error) {
+        console.warn('Failed to parse subjects:', error);
+        return subjects.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+    // Handle comma-separated string
+    return subjects.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  
+  return [String(subjects)];
+};
+
 exports.registerTeacher = asyncHandler(async (req, res) => {
   const { name, email, mobile, qualification, subjects, salaryType, baseSalary } = req.body;
 
@@ -22,6 +49,9 @@ exports.registerTeacher = asyncHandler(async (req, res) => {
   if (existingRequest || teacherExist) {
     return res.status(400).json({ message: "Teacher already exists or request already pending" });
   }
+
+  // ✅ Parse subjects properly
+  const parsedSubjects = parseSubjects(subjects);
 
   // ✅ Upload documents
   let documents = [];
@@ -38,7 +68,7 @@ exports.registerTeacher = asyncHandler(async (req, res) => {
     email,
     mobile,
     qualification,
-    subjects,
+    subjects: parsedSubjects, // Store as proper array
     salaryType,
     baseSalary,
     documents,
@@ -53,6 +83,7 @@ exports.registerTeacher = asyncHandler(async (req, res) => {
       <p><b>Name:</b> ${request.name}</p>
       <p><b>Email:</b> ${request.email}</p>
       <p><b>Mobile:</b> ${request.mobile}</p>
+      <p><b>Subjects:</b> ${parsedSubjects.join(', ')}</p>
       <p>Please review in the admin panel.</p>
     `,
   });
@@ -60,6 +91,7 @@ exports.registerTeacher = asyncHandler(async (req, res) => {
   res.status(201).json({
     message: "Teacher registration request submitted. Waiting for admin approval.",
     requestId: request._id,
+    subjects: parsedSubjects,
     documents,
   });
 });

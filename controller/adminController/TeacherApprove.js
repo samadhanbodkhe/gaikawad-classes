@@ -3,14 +3,52 @@ const AdminTeacherRequest = require("../../models/admin/AdminTeacherRequest");
 const Teacher = require("../../models/teacher/Teacher");
 const sendEmail = require("../../utils/sendEmail");
 
+// Helper function to parse subjects
+const parseSubjects = (subjects) => {
+  if (!subjects) return [];
+  
+  if (Array.isArray(subjects)) {
+    return subjects;
+  }
+  
+  if (typeof subjects === 'string') {
+    if (subjects.startsWith('[') || subjects.startsWith('"[')) {
+      try {
+        const cleanedString = subjects.replace(/^"|"$/g, '').replace(/\\"/g, '"');
+        const parsed = JSON.parse(cleanedString);
+        return Array.isArray(parsed) ? parsed : [subjects];
+      } catch (error) {
+        return subjects.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+    return subjects.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  
+  return [String(subjects)];
+};
+
 exports.getPendingTeacherRequests = asyncHandler(async (req, res) => {
     const requests = await AdminTeacherRequest.find({ status: "pending" });
-    res.status(200).json(requests);
+    
+    // Parse subjects for each request before sending
+    const formattedRequests = requests.map(request => ({
+      ...request.toObject(),
+      subjects: parseSubjects(request.subjects)
+    }));
+    
+    res.status(200).json(formattedRequests);
 });
 
 exports.getAllTeachers = asyncHandler(async (req, res) => {
     const teachers = await Teacher.find();
-    res.status(200).json(teachers);
+    
+    // Parse subjects for each teacher before sending
+    const formattedTeachers = teachers.map(teacher => ({
+      ...teacher.toObject(),
+      subjects: parseSubjects(teacher.subjects)
+    }));
+    
+    res.status(200).json(formattedTeachers);
 });
 
 exports.getTeacherDetails = asyncHandler(async (req, res) => {
@@ -19,7 +57,14 @@ exports.getTeacherDetails = asyncHandler(async (req, res) => {
   if (!teacher) {
     return res.status(404).json({ message: "Teacher not found" });
   }
-  res.status(200).json(teacher);
+  
+  // Parse subjects before sending
+  const formattedTeacher = {
+    ...teacher.toObject(),
+    subjects: parseSubjects(teacher.subjects)
+  };
+  
+  res.status(200).json(formattedTeacher);
 });
 
 exports.approveTeacherRequest = asyncHandler(async (req, res) => {
@@ -30,12 +75,15 @@ exports.approveTeacherRequest = asyncHandler(async (req, res) => {
         return res.status(404).json({ message: "Teacher request not found" });
     }
 
+    // Parse subjects before creating teacher
+    const parsedSubjects = parseSubjects(request.subjects);
+
     const teacher = await Teacher.create({
         name: request.name,
         email: request.email,
         mobile: request.mobile,
         qualification: request.qualification,
-        subjects: request.subjects,
+        subjects: parsedSubjects, // Store as proper array
         salaryType: request.salaryType,
         baseSalary: request.baseSalary,
         documents: request.documents,
@@ -52,6 +100,7 @@ exports.approveTeacherRequest = asyncHandler(async (req, res) => {
         html: `
           <h2>Congratulations ${teacher.name}!</h2>
           <p>Your registration has been approved.</p>
+          <p><strong>Subjects:</strong> ${parsedSubjects.join(', ')}</p>
           <p>You can now login using your email.</p>
         `
     });
