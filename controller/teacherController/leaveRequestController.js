@@ -3,26 +3,44 @@ const LeaveRequest = require("../../models/teacher/LeaveRequest");
 const sendEmail = require("../../utils/sendEmail");
 
 exports.createLeaveRequest = asyncHandler(async (req, res) => {
-    const { fromDate, toDate, leaveType, reason } = req.body;
+    const { fromDate, toDate, leaveType, reason, fromTime, toTime } = req.body;
 
     if (!fromDate || !toDate || !leaveType) {
         res.status(400);
         throw new Error("fromDate, toDate, and leaveType are required");
     }
 
+    // Combine date and time if time is provided
+    let fromDateTime = new Date(fromDate);
+    let toDateTime = new Date(toDate);
+    
+    // If time is provided, combine with date
+    if (fromTime) {
+        const [hours, minutes] = fromTime.split(':');
+        fromDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    }
+    
+    if (toTime) {
+        const [hours, minutes] = toTime.split(':');
+        toDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    }
+
     const leaveRequest = await LeaveRequest.create({
         teacherId: req.teacher._id,
-        fromDate,
-        toDate,
+        fromDate: fromDateTime,
+        toDate: toDateTime,
         leaveType,
-        reason: reason || null
+        reason: reason || null,
+        fromTime: fromTime || null,
+        toTime: toTime || null,
+        appliedAt: new Date() // Set the application timestamp
     });
 
     // Notify admin by email
     await sendEmail({
         to: process.env.ADMIN_EMAIL,
         subject: "New Leave Request Submitted",
-        html: `<p>A new leave request has been submitted by ${req.teacher.name}. Please review and approve/reject it.</p>`
+        html: `<p>A new leave request has been submitted by ${req.teacher.name} at ${new Date().toLocaleString('en-IN', { timeStyle: 'medium', dateStyle: 'medium' })}. Please review and approve/reject it.</p>`
     });
 
     res.status(201).json({ message: "Leave request submitted successfully", leaveRequest });

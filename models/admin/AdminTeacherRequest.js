@@ -17,6 +17,7 @@ const adminTeacherRequestSchema = new mongoose.Schema({
     baseSalary: { type: Number, default: 0 },
     documents: [{ type: String }],
     status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+    rejectionReason: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model("AdminTeacherRequest", adminTeacherRequestSchema);

@@ -21,8 +21,6 @@ const teacherSchema = new mongoose.Schema({
     profileImage: { type: String },
     isActive: { type: Boolean, default: true },
     isApproved: { type: Boolean, default: false },
-
-    isRejected: { type: Boolean, default: false },
 }, { timestamps: true });
 
 module.exports = mongoose.model("Teacher", teacherSchema);

@@ -9,7 +9,11 @@ const leaveRequestSchema = new mongoose.Schema({
     status: { type: String, enum: ["Pending","Approved","Rejected"], default: "Pending" },
     processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", default: null },
     processedAt: { type: Date, default: null },
-    isDeleted: { type: Boolean, default: false }
+    isDeleted: { type: Boolean, default: false },
+    // Add these fields for time tracking
+    appliedAt: { type: Date, default: Date.now }, // Timestamp when request was created
+    fromTime: { type: String }, // Store time separately if needed
+    toTime: { type: String } // Store time separately if needed
 }, { timestamps: true });
 
 leaveRequestSchema.index({ teacherId: 1, status: 1 });

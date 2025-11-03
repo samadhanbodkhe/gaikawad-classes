@@ -28,11 +28,11 @@ exports.createStudent = asyncHandler(async (req, res) => {
   }
 
   // 🔹 Fee Calculation
-  const totalAmount = Number(fees?.totalAmount || 0)
+  const totalAmount = Number(fees?.totalAmount || 0);
   const paidAmount = Number(fees?.paidAmount || 0);
   const pendingAmount = totalAmount - paidAmount;
 
-  const student = await Student.create({
+  const studentData = {
     name,
     rollNumber,
     className,
@@ -53,9 +53,23 @@ exports.createStudent = asyncHandler(async (req, res) => {
           ? "Partial"
           : "Pending",
       lastPaymentDate: paidAmount > 0 ? new Date() : null,
+      paymentHistory: [],
     },
     teacherId,
-  });
+  };
+
+  // Add initial payment to history if paidAmount > 0
+  if (paidAmount > 0) {
+    studentData.fees.paymentHistory.push({
+      amount: paidAmount,
+      paymentDate: new Date(),
+      paymentMethod: "Cash",
+      note: "Initial payment",
+      receivedBy: req.teacher.name,
+    });
+  }
+
+  const student = await Student.create(studentData);
 
   res.status(201).json({
     success: true,

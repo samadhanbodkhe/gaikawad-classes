@@ -16,6 +16,13 @@ exports.markAttendance = asyncHandler(async (req, res) => {
     throw new Error("Attendance data, date, class and section are required");
   }
 
+  // Check if the date is today - only allow marking attendance for today
+  const today = new Date().toISOString().split('T')[0];
+  if (date !== today) {
+    res.status(400);
+    throw new Error("You can only mark attendance for today's date");
+  }
+
   const attendanceDate = new Date(date);
   attendanceDate.setHours(0, 0, 0, 0);
 
@@ -38,7 +45,7 @@ exports.markAttendance = asyncHandler(async (req, res) => {
       });
 
       if (existingAttendance) {
-        // Update existing attendance
+        // Update existing attendance - only allowed for today
         existingAttendance.status = item.status;
         existingAttendance.teacherId = teacherId;
         existingAttendance.reason = item.reason || "";
@@ -240,6 +247,15 @@ exports.toggleAttendance = asyncHandler(async (req, res) => {
   if (!attendance) {
     res.status(404);
     throw new Error("Attendance record not found");
+  }
+
+  // ✅ Check if the attendance date is today - only allow editing for today
+  const today = new Date().toISOString().split('T')[0];
+  const attendanceDate = new Date(attendance.date).toISOString().split('T')[0];
+  
+  if (attendanceDate !== today) {
+    res.status(400);
+    throw new Error("You can only edit today's attendance. Previous attendance records cannot be modified.");
   }
 
   const newStatus = status || (attendance.status === "Present" ? "Absent" : "Present");

@@ -38,6 +38,17 @@ exports.getPendingTeacherRequests = asyncHandler(async (req, res) => {
     
     res.status(200).json(formattedRequests);
 });
+exports.getRejectedTeacherRequests = asyncHandler(async (req, res) => {
+    const requests = await AdminTeacherRequest.find({ status: "rejected" });
+    
+    // Parse subjects for each request before sending
+    const formattedRequests = requests.map(request => ({
+      ...request.toObject(),
+      subjects: parseSubjects(request.subjects)
+    }));
+    
+    res.status(200).json(formattedRequests);
+});
 
 exports.getAllTeachers = asyncHandler(async (req, res) => {
     const teachers = await Teacher.find();
@@ -133,7 +144,9 @@ exports.rejectTeacherRequest = asyncHandler(async (req, res) => {
         return res.status(404).json({ message: "Teacher request not found" });
     }
 
+    // Update status to rejected but keep the record in AdminTeacherRequest
     request.status = "rejected";
+    request.rejectionReason = reason; // Add rejection reason to the document
     await request.save();
 
     await sendEmail({

@@ -5,6 +5,7 @@ const { adminProtect } = require("../../middleware/adminProtected");
 
 router
   .get("/teacher-requests", adminProtect, TeacherApprove.getPendingTeacherRequests)
+  .get("/rejected", adminProtect, TeacherApprove.getRejectedTeacherRequests)
   .get("/getAllTeachers", adminProtect, TeacherApprove.getAllTeachers)
   .get("/teacher-details/:id", adminProtect, TeacherApprove.getTeacherDetails)
   .put("/teacherApprove/:requestId", adminProtect, TeacherApprove.approveTeacherRequest)

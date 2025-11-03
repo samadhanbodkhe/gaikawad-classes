@@ -1,5 +1,28 @@
 const mongoose = require("mongoose");
 
+const paymentHistorySchema = new mongoose.Schema({
+  amount: {
+    type: Number,
+    required: true,
+  },
+  paymentDate: {
+    type: Date,
+    default: Date.now,
+  },
+  paymentMethod: {
+    type: String,
+    default: "Cash",
+  },
+  note: {
+    type: String,
+    trim: true,
+  },
+  receivedBy: {
+    type: String,
+    trim: true,
+  }
+});
+
 const studentSchema = new mongoose.Schema(
   {
     name: {
@@ -19,7 +42,7 @@ const studentSchema = new mongoose.Schema(
     },
     section: {
       type: String,
-      default: "A",
+      required: true,
       trim: true,
     },
     admissionDate: {
@@ -51,7 +74,6 @@ const studentSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    // 🔹 Fee details
     fees: {
       totalAmount: {
         type: Number,
@@ -59,14 +81,13 @@ const studentSchema = new mongoose.Schema(
       },
       paidAmount: {
         type: Number,
+        required: true,
         default: 0,
       },
       pendingAmount: {
         type: Number,
         default: function () {
-          return this.fees
-            ? this.fees.totalAmount - this.fees.paidAmount
-            : 0;
+          return this.fees.totalAmount - this.fees.paidAmount;
         },
       },
       lastPaymentDate: {
@@ -78,6 +99,7 @@ const studentSchema = new mongoose.Schema(
         enum: ["Paid", "Partial", "Pending"],
         default: "Pending",
       },
+      paymentHistory: [paymentHistorySchema],
     },
     teacherId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -98,11 +120,11 @@ studentSchema.index({ className: 1, section: 1, rollNumber: 1 }, { unique: true 
 // 🔹 Auto update fee status before saving
 studentSchema.pre("save", function (next) {
   if (this.fees) {
-    this.fees.pendingAmount =
-      this.fees.totalAmount - (this.fees.paidAmount || 0);
+    this.fees.pendingAmount = this.fees.totalAmount - this.fees.paidAmount;
 
     if (this.fees.pendingAmount <= 0) {
       this.fees.paymentStatus = "Paid";
+      this.fees.pendingAmount = 0;
     } else if (this.fees.paidAmount > 0) {
       this.fees.paymentStatus = "Partial";
     } else {
