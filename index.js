@@ -8,11 +8,11 @@ const app = express();
 
 app.use(cors({
   origin: [
-    "http://localhost:5173",
     "https://gaikawad-classes.vercel.app",
     "https://gaikawad-classes-admin-panal.vercel.app",
     "https://gaikawad-classes-teacher-panal.vercel.app",
     "http://localhost:3000",
+    "http://localhost:5173",
     
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
@@ -59,5 +59,5 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 module.exports = app
