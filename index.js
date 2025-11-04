@@ -8,11 +8,12 @@ const app = express();
 
 app.use(cors({
   origin: [
+    "http://localhost:5173",
+    "https://gaikawad-classes-user.vercel.app",
     "https://gaikawad-classes.vercel.app",
     "https://gaikawad-classes-admin-panal.vercel.app",
     "https://gaikawad-classes-teacher-panal.vercel.app",
     "http://localhost:3000",
-    "http://localhost:5173",
     
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
