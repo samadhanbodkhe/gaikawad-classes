@@ -31,7 +31,7 @@ mongoose
     process.exit(1);
   });
 
-// Routes
+// Routes admin
 app.use("/api/v1/adminAuth", require("./routes/admin/adminRoute"));
 app.use("/api/v1/approveReject", require("./routes/admin/teacherApproveRoute"));
 app.use("/api/v1/attendance", require("./routes/admin/attendanceRoutes"));
