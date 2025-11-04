@@ -8,11 +8,11 @@ const app = express();
 
 app.use(cors({
   origin: [
+    "http://localhost:5173",
     "https://gaikawad-classes.vercel.app",
     "https://gaikawad-classes-admin-panal.vercel.app",
     "https://gaikawad-classes-teacher-panal.vercel.app",
     "http://localhost:3000",
-    "http://localhost:5173",
     
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
@@ -38,12 +38,16 @@ app.use("/api/v1/schedule", require("./routes/admin/scheduleRoutes"));
 app.use("/api/v1/salary", require("./routes/admin/salaryRoutes"));
 app.use("/api/v1/dashboard", require("./routes/admin/dashboardRoutes"));
 
-
 //teacher
 app.use("/api/v1/teacherAuth", require("./routes/teacher/teacherRoute"));
 app.use("/api/v1/leaveRequest", require("./routes/teacher/leaveRequestRoutes"));
 app.use("/api/v1/student", require("./routes/teacher/studentRoutes"));
 app.use("/api/v1/attendanceStudent", require("./routes/teacher/studentAttendanceRoutes"));
+
+
+//contact
+app.use("/api/v1/contact", require("./routes/contact/contactRoutes"));
+
 
 app.get("/*splat", (req, res) => {
   res.status(404).json({ message: "Resource Not Found" });
@@ -55,5 +59,5 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-// app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 module.exports = app
